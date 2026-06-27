@@ -1,0 +1,82 @@
+import os
+import joblib
+import numpy as np
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning)
+
+MODELS_DIR = r"C:\Users\Personal\OneDrive\Desktop\final project\models"
+DATASET_FILES = ["heart", "kidney", "liver", "thyroid", "diabetes"]
+
+def load_bundle(disease):
+    try:
+        pca_path = os.path.join(MODELS_DIR, f"{disease}_pca.pkl")
+        pca = joblib.load(pca_path) if os.path.exists(pca_path) else None
+        
+        return {
+            "model": joblib.load(os.path.join(MODELS_DIR, f"{disease}_model.pkl")),
+            "scaler": joblib.load(os.path.join(MODELS_DIR, f"{disease}_scaler.pkl")),
+            "imputer": joblib.load(os.path.join(MODELS_DIR, f"{disease}_imputer.pkl")),
+            "pca": pca,
+            "features": joblib.load(os.path.join(MODELS_DIR, f"{disease}_features.pkl")),
+        }
+    except Exception as e:
+        print(f"Error loading {disease}: {e}")
+        return None
+
+
+def predict_for_disease(disease, user_values):
+    bundle = load_bundle(disease)
+
+    if bundle is None:
+        return f"{disease}: MODEL NOT FOUND"
+
+    # build input row in correct feature order
+    row = []
+    for f in bundle["features"]:
+        row.append(float(user_values.get(f, 0)))
+
+    X = np.array(row).reshape(1, -1)
+
+    # preprocessing (same as training)
+    X = bundle["imputer"].transform(X)
+    X = bundle["scaler"].transform(X)
+
+    if bundle["pca"] is not None:
+        X = bundle["pca"].transform(X)
+
+    pred = bundle["model"].predict(X)[0]
+
+    return f"{disease.upper()} => {'DISEASE DETECTED' if pred == 1 else 'NO DISEASE'}"
+
+
+# ---------------- MAIN ----------------
+if __name__ == "__main__":
+
+    print("\nENTER PATIENT VALUES\n")
+
+    # ⚠️ simple input dictionary (you can improve UI later)
+    user_values = {}
+
+    # Common input (safe demo version)
+    fields = [
+        "Age",
+        "Glucose",
+        "BMI",
+        "BloodPressure",
+        "Albumin",
+        "Serum_Creatinine",
+        "TSH",
+        "T3",
+        "Total_Bilirubin",
+        "Cholesterol"
+    ]
+
+    for f in fields:
+        user_values[f] = input(f"{f}: ")
+
+    print("\n===== PREDICTION RESULT =====\n")
+
+    for disease in DATASET_FILES:
+        result = predict_for_disease(disease, user_values)
+        print(result)
